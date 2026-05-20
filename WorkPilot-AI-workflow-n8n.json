@@ -1,0 +1,281 @@
+{
+  "name": "WorkPilot-AI",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "freelance-agent",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e2f0c914-1376-4e98-8765-83ce17eb38d2",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "freelance-agent"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.message }}",
+        "options": {
+          "systemMessage": "You are FreelanceBot, a conversational AI assistant specialized in helping freelancers track their working hours and project earnings.\n\n1. ROLE: You are a professional time-tracking assistant. You help users log hours, review project summaries, and calculate earnings. You do not answer questions outside this domain.\n\n2. TONE: Respond in a concise, friendly, and professional tone. Avoid overly technical jargon. Keep answers under 3 sentences unless the user asks for a detailed breakdown.\n\n3. MEMORY: You remember the last 7 messages of the conversation. Use that context to avoid asking for information the user already provided.\n\n4. TOOL USAGE: When the user mentions working on a project or logging hours, call the log_hours tool. When the user asks for a summary, totals, or earnings, call get_project_summary. Do not call tools for general greetings or off-topic questions.\n\n5. RESTRICTIONS: Never make up project IDs, hour counts, or earnings figures. If you do not have enough information to call a tool, ask the user for the missing data before proceeding.\n\n6. LANGUAGE: Always respond in the same language the user writes in. If the user writes in Spanish, respond in Spanish. If in English, respond in English.",
+          "returnIntermediateSteps": true
+        }
+      },
+      "id": "90acde40-706d-416b-9232-a5651ba45db6",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        352,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.body.sessionId}}",
+        "contextWindowLength": 7
+      },
+      "id": "0fd96b94-a656-45be-bdf7-75667bc77ae9",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        352,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const agentOutput = $input.first().json;\n\nconst toolsUsed = (agentOutput.intermediateSteps || [])\n  .map(step => step.action?.tool)\n  .filter(Boolean);\n\nreturn [{\n  json: {\n    reply: agentOutput.output,\n    toolUsed: toolsUsed.length > 0 ? toolsUsed[0] : null,\n    sessionId: $('Webhook').first().json.body.sessionId\n  }\n}];"
+      },
+      "id": "6d8d382c-1e66-4310-b177-7996d6e553a1",
+      "name": "Code Node",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        816,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "cab4fb14-00e6-4c00-b654-95bb84802f0c",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Registers the hours the user worked on a specific project",
+        "method": "POST",
+        "url": "https://ylkfwrhrpqiwblonxbud.supabase.co/rest/v1/time_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "sb_publishable_oQt0bsmHeC1BkPN_Kbr47w_f4PoQWRq"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer sb_publishable_oQt0bsmHeC1BkPN_Kbr47w_f4PoQWRq"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "project_id",
+              "value": "={{ $fromAI('project_id', 'UUID of the project') }}"
+            },
+            {
+              "name": "hours",
+              "value": "={{ $fromAI('hours', 'Number of hours worked') }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $fromAI('description', 'What was done during those hours') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        480,
+        224
+      ],
+      "id": "4645e28c-0404-433c-9f69-15d044657646",
+      "name": "log_hours"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Queries the total hours and earnings summary for active projects",
+        "url": "https://ylkfwrhrpqiwblonxbud.supabase.co/rest/v1/time_logs?select=hours,projects(name,client,hourly_rate)",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "sb_publishable_oQt0bsmHeC1BkPN_Kbr47w_f4PoQWRq"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer sb_publishable_oQt0bsmHeC1BkPN_Kbr47w_f4PoQWRq"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        608,
+        224
+      ],
+      "id": "829b9788-076b-4413-ac89-2e9283911c9b",
+      "name": "get_project_summary"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "openai/gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "openai/gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        224,
+        224
+      ],
+      "id": "142ccb7d-4ffd-4834-a0e9-872d8134ae0c",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "t7TAC0aGgyePZIiX",
+          "name": "OpenAI account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Node": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "log_hours": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_project_summary": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "c52083b0-d69b-4a91-b3fd-7d93f3065733",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c0708a231f9cc15a56e16ef1aa21ac7158baa3cac4caa45b363dc83eb2a16779"
+  },
+  "id": "v9zGfDclYe4mJywM",
+  "tags": []
+}
