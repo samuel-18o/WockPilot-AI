@@ -12,7 +12,7 @@ This guide assumes you have Node.js 18+ and `npm` installed.
 
 ```bash
 git clone <repo-url>
-cd WockPilot-AI
+cd WorkPilot-AI
 npm install
 ```
 
